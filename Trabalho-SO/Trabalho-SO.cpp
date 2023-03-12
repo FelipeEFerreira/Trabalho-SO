@@ -1,50 +1,93 @@
+/*
+* Disciplina: Sistemas Operacionais
+* Curso: Engenharia de Computação - UFGD - FACET
+* 
+* Trabalho 1
+* 
+* Docente: Marcos Paulo Moro
+* 
+* Discente:
+* Felipe Emanuel Ferreira   RGA: 20200712175441
+*/
+
+//Operações de I/O
 #include <iostream>
-#include <stdlib.h>
-#include <string>
+
+//manipulação de vetores
 #include <vector>
+
+//Operações matemáticas
 #include <cmath>
-#include <cctype>
+
+//Medir temnpo gasto
 #include <time.h>
+
+//Manipulação de string
+#include <string>
+#include <cctype>
+
+//Multithread
 #include <process.h>
 #include <windows.h>
 
+//Para limpar o buffer de leitura
+#include <limits>
+#undef max
+
 using namespace std;
 
-void ImprimeMenu();
-void ImprimeResultados();
-void GerarMatriz(int linhas, int colunas, int**& mat);
-void PreencherMatriz(int linhas, int colunas, int**& mat);
-bool ConfirmarEscolha(const string op);
-bool VerificaPrimalidade(int n);
+//Declaração das funções utilizadas
+
+//Funções da interface com usuário
+void ImprimeMenu(); //Imprime o menu de opções
+int LerInteiro(); //Garante a leitura de um inteiro
+bool ConfirmarEscolha(const string op); //Pergunta ao usuário para confirmar sua ação
+
+//Manipulação da matriz
+void GerarMatriz(const int linhas, const int colunas); //Aloca dinâmicamente uma matriz
+void PreencherMatriz(const int linhas, const int colunas, const int semente); //Preenche a matriz com valores aleatórios
+
+//Contagem dos números primos
+void ContarPrimos(void* parametros);
+bool VerificaPrimalidade(const int n); //Verifica se um número n é primo
+
+//Imprime na tela
+void ImprimeResultados(); //Imprime os resultados obtidos
+void print(int** M, int linhas, int colunas); //Secrect function
+
+struct Parametros {
+    int linhas = 0;
+    int colunas = 0;
+    int tamSub = 0;
+};
+
+int** mat = NULL;
 
 int main()
 {
-    int opt , n_threads = 0;
-    int linhaMat = 0, colunaMat = 0;
-    int tamSub = 0;
-    int** mat = NULL;
+    int opt, semente, n_threads = 0;
+    Parametros parametros;
     bool confirmar;
     bool sementeGerada = false;
+
     do
     {
         ImprimeMenu();
         cout << "Selecione uma opção:\n> ";
-        cin >> opt;
+        opt = LerInteiro();
         switch (opt)
         {
             case 1: //Definir tamanho da Matriz
                 confirmar = ConfirmarEscolha("o tamanho da matriz");
                 if (confirmar)
                 {
-                    cout << ">>Tamanho atual da matriz:" << linhaMat << "X" << colunaMat << endl;
+                    cout << ">>Tamanho atual da matriz:" << parametros.linhas << "X" << parametros.colunas << endl;
                     cout << "Informe o número de linhas:\n>";
-                    cin >> linhaMat;
+                    parametros.linhas = LerInteiro();
                     cout << "Informe o número de colunas:\n>";
-                    cin >> colunaMat;
-                    if (linhaMat != 0 || colunaMat != 0)
-                        free(mat);
-                    GerarMatriz(linhaMat, colunaMat, mat);
-                    cout << ">>Tamanho da matriz alterada para: " << linhaMat << "X" << colunaMat << endl;
+                    parametros.colunas = LerInteiro();
+                    GerarMatriz(parametros.linhas, parametros.colunas);
+                    cout << ">>Tamanho da matriz alterada para: " << parametros.linhas << "X" << parametros.colunas << endl;
                 }
                 else
                     cout << ">>O tamanho da matriz não foi alterada." << endl;
@@ -54,7 +97,8 @@ int main()
                 confirmar = ConfirmarEscolha("semente aleatoria");
                 if (confirmar)
                 {
-                    srand(time(NULL));
+                    cout << "Entre com uma semente:\n>";
+                    semente = LerInteiro();
                     cout << ">>Semente aleatória alterada com sucesso!" << endl;
                     sementeGerada = true;
                 }
@@ -69,7 +113,7 @@ int main()
                     if (confirmar)
                     {
                         cout << ">>Preenchendo matriz com valores aleatórios..." << endl;
-                        PreencherMatriz(linhaMat, colunaMat, mat);
+                        PreencherMatriz(parametros.linhas, parametros.colunas, semente);
                         cout << ">>A matriz preenchida com valores aleatorios." << endl;
                     }
                     else
@@ -83,10 +127,10 @@ int main()
                 confirmar = ConfirmarEscolha("o tamanho das submatrizes");
                 if (confirmar)
                 {
-                    cout << ">>O tamanho atual das submatrizes é de " << tamSub << " elementos." << endl;
+                    cout << ">>O tamanho atual das submatrizes é de " << parametros.tamSub << " elementos." << endl;
                     cout << "Informe o tamanho das submatrizes:\n>";
-                    cin >> tamSub;
-                    cout << ">>Tamanho das submatrizes alterado para " << tamSub << " elementos." << endl;
+                    parametros.tamSub = LerInteiro();
+                    cout << ">>Tamanho das submatrizes alterado para " << parametros.tamSub << " elementos." << endl;
                 }
                 else
                     cout << ">>O tamanho das submatrizes não foi alterado." << endl;
@@ -97,17 +141,24 @@ int main()
                 if (confirmar)
                 {
                     cout << "Entre com o número de threads(n° threads atual: " << n_threads << "):\n>";
-                    cin >> n_threads;
-                    cout << ">>Numero de threads alteradas para" << n_threads << "!" << endl;
+                    n_threads = LerInteiro();
+                    cout << ">>Numero de threads alteradas para " << n_threads << "!" << endl;
                 }
                 else
                     cout << ">>O numero de threads não foi alterado." << endl;
                 system("PAUSE");
                 break;
             case 6: //Executar
-                cout << ">>Processando..." << endl;
-                //TODO
-                cout << ">>Processamento concluido com sucesso!" << endl;
+                if (parametros.linhas == 0 || parametros.colunas == 0)
+                    cout << ">>Por favor defina um tamnaho de matriz válido (Atual: "<< parametros.linhas << "X" << parametros.colunas << ")." << endl;
+                else if (parametros.tamSub == 0)
+                    cout << ">>Por favor defina um tamanho de submatriz válido (Atual: " << parametros.tamSub << ")." << endl;
+                else
+                {
+                    cout << ">>Processando..." << endl;
+                    //TODO
+                    cout << ">>Processamento concluido com sucesso!" << endl;
+                }
                 system("PAUSE");
                 break;
             case 7: //Ver resultados
@@ -119,6 +170,10 @@ int main()
                 cout << ">>Finalizando..." << endl;
                 free(mat);
                 break;
+            case -99:
+                print(mat, parametros.linhas, parametros.colunas);
+                system("PAUSE");
+                break;
             default: //Caso padrão, opção inválida
                 cout << ">>Por favor, entre com uma opção válida." << endl;
                 system("PAUSE");
@@ -128,12 +183,12 @@ int main()
     return 0;
 }
 
+
 void ImprimeMenu() 
 {
-    cout << flush;
     system("CLS");
     cout << "--------------------------------------------------------------------------------" << endl;
-    cout << "1- Definir tamanho da Matriz" << "\t\t" << "5 - Definir número de Thread" << endl;
+    cout << "1- Definir tamanho da Matriz" << "\t\t" << "5- Definir número de Thread" << endl;
     cout << "2- Definir semente do gerador" << "\t\t" << "6- Executar" << endl;
     cout << "3- Preencher matriz" << "\t\t\t" << "7- Ver resultados" << endl;
     cout << "4- Definir tamanho das submatrizes" << "\t" << "8- Encerrar" << endl;
@@ -145,7 +200,7 @@ void ImprimeResultados()
     //TODO
 }
 
-bool ConfirmarEscolha(string op)
+bool ConfirmarEscolha(const string op)
 {
     char escolha;
     do
@@ -166,15 +221,17 @@ bool ConfirmarEscolha(string op)
     return false;
 }
 
-void GerarMatriz(int linhas, int colunas, int**& mat)
+void GerarMatriz(const int linhas, const int colunas)
 {
     mat = (int**)malloc(linhas * sizeof(int*));
     for (int i = 0; i < linhas; i++)
         mat[i] = (int*)malloc(colunas * sizeof(int));
 }
 
-void PreencherMatriz(int linhas, int colunas, int**& mat)
+void PreencherMatriz(const int linhas, const int colunas, const int semente)
 {
+    srand(semente);
+
     for (int i = 0; i < linhas; i++)
     {
         for (int j = 0; j < colunas; j++)
@@ -186,7 +243,7 @@ void PreencherMatriz(int linhas, int colunas, int**& mat)
     }
 }
 
-bool VerificaPrimalidade(int n)
+bool VerificaPrimalidade(const int n)
 {
     if (n <= 1)
         return false;
@@ -198,4 +255,29 @@ bool VerificaPrimalidade(int n)
         if (n % i == 0 || n % (i + 2) == 0)
             return false;
     return true;
+}
+
+int LerInteiro() {
+    int inteiro;
+    while (!(cin >> inteiro)) {
+        cout << "ERRO: o número deve ser inteiro! Entre com um número válido:\n>";
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    }
+    return inteiro;
+}
+
+void print(int** mat, int linhas, int colunas) {
+    for (int i = 0; i < linhas; i++)
+    {
+        for (int j = 0; j < colunas; j++)
+        {
+            cout << mat[i][j] << "  ";
+        }
+        cout << endl;
+    }
+}
+
+void ContarPrimos(void* parametros) {
+
 }
