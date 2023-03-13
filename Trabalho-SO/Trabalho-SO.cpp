@@ -19,7 +19,7 @@
 //Operações matemáticas
 #include <cmath>
 
-//Medir temnpo gasto
+//Medir tempo gasto
 #include <time.h>
 
 //Manipulação de string
@@ -53,12 +53,13 @@ bool VerificaPrimalidade(const int n); //Verifica se um número n é primo
 
 //Imprime na tela
 void ImprimeResultados(); //Imprime os resultados obtidos
-void print(int** M, int linhas, int colunas); //Secrect function
+void print(int linhas, int colunas); //Secrect function
 
 struct Parametros {
-    int linhas = 0;
-    int colunas = 0;
-    int tamSub = 0;
+    int linhasMat = 0;
+    int colunasMat = 0;
+    int linhasSub = 0;
+    int colunasSub = 0;
 };
 
 int** mat = NULL;
@@ -82,10 +83,16 @@ int main()
                 if (confirmar)
                 {
                     cout << ">>Tamanho atual da matriz:" << parametros.linhas << "X" << parametros.colunas << endl;
-                    cout << "Informe o número de linhas:\n>";
-                    parametros.linhas = LerInteiro();
-                    cout << "Informe o número de colunas:\n>";
-                    parametros.colunas = LerInteiro();
+                    if(parametros.linhas == 0 && parametros.colunas == 0)
+                        free(mat);
+                    do{
+                        cout << "Informe o número de linhas:\n>";
+                        parametros.linhas = LerInteiro();
+                        cout << "Informe o número de colunas:\n>";
+                        parametros.colunas = LerInteiro();
+                        if(parametros.linhas <= 0 && parametros.colunas <= 0)
+                            cout << ">>Entre com um valor válido." << endl;
+                    }while(parametros.linhas <= 0 && parametros.colunas <= 0);
                     GerarMatriz(parametros.linhas, parametros.colunas);
                     cout << ">>Tamanho da matriz alterada para: " << parametros.linhas << "X" << parametros.colunas << endl;
                 }
@@ -127,9 +134,15 @@ int main()
                 confirmar = ConfirmarEscolha("o tamanho das submatrizes");
                 if (confirmar)
                 {
-                    cout << ">>O tamanho atual das submatrizes é de " << parametros.tamSub << " elementos." << endl;
-                    cout << "Informe o tamanho das submatrizes:\n>";
-                    parametros.tamSub = LerInteiro();
+                    cout << ">>O tamanho atual das submatrizes é de " << parametros.linhasSub << "X" << parametros.colunasSub << endl;
+                    do{
+                        cout << "Informe o número de linhas das submatrizes:\n>";
+                        parametros.linhasSub = LerInteiro();
+                        cout << "Informe o número de colunas das submatrizes:\n>";
+                        parametros.colunasSub = LerInteiro();
+                        if(parametros.linhasSub <= 0 && parametros.colunasSub <= 0)
+                            cout << ">>Entre com um tamanho válido para as submatrizes";
+                    }while(parametros.linhasSub <= 0 && parametros.colunasSub <= 0);
                     cout << ">>Tamanho das submatrizes alterado para " << parametros.tamSub << " elementos." << endl;
                 }
                 else
@@ -171,7 +184,7 @@ int main()
                 free(mat);
                 break;
             case -99:
-                print(mat, parametros.linhas, parametros.colunas);
+                print(parametros.linhas, parametros.colunas);
                 system("PAUSE");
                 break;
             default: //Caso padrão, opção inválida
@@ -209,7 +222,7 @@ bool ConfirmarEscolha(const string op)
         if (op == "o tamanho da matriz")
             cout << "ATENÇÂO: isso implicará na perda dos elementos da matriz!" << endl;
         if (op == "o conteúdo da matriz")
-            cout << "ATENÇÂO: caso caso tenha mudado a semente aleatória essa operação irá sobrescrever os dados anteriores." << endl;
+            cout << "ATENÇÂO: caso tenha mudado a semente aleatória essa operação irá sobrescrever os dados anteriores." << endl;
         cout << ">";
         cin >> escolha;
         escolha = toupper(escolha);
@@ -267,7 +280,7 @@ int LerInteiro() {
     return inteiro;
 }
 
-void print(int** mat, int linhas, int colunas) {
+void print(int linhas, int colunas) {
     for (int i = 0; i < linhas; i++)
     {
         for (int j = 0; j < colunas; j++)
