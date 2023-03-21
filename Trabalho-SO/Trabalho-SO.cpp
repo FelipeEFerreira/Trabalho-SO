@@ -452,13 +452,14 @@ void ContarPrimos(void* parametrosFunc) {
         //Sessão critica para armazenar resultado da thread e calcular proxima submatriz a ser verificada
         WaitForSingleObject(hmutex2, INFINITE);
         totalPrimos += contLocal;
-        elementoInicial = subVerificadas * totalSub;
-        elementoFinal = elementoInicial + totalSub;
-        subVerificadas++;
-        if (temResto)
-            if (subVerificadas == qntdSub)
-                elementoFinal = elementoInicial + elementosRestante;
-        //cout << "id: " << parametros->idThread << " verificando do elemento " << elementoInicial << " ate " << elementoFinal << endl;
+        if (subVerificadas <= qntdSub) {
+            elementoInicial = subVerificadas * totalSub;
+            elementoFinal = elementoInicial + totalSub;
+            ++subVerificadas;
+            if (temResto)
+                if (subVerificadas == qntdSub)
+                    elementoFinal = elementoInicial + elementosRestante;
+        }
         ReleaseMutex(hmutex2);
     }
 
