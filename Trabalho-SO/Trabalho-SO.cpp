@@ -16,11 +16,8 @@
 //manipulação de vetores
 #include <vector>
 
-//Operações matemáticas
-#include <cmath>
-
 //Medir tempo gasto
-#include <time.h>
+#include <ctime>
 
 //Manipulação de string
 #include <string>
@@ -36,40 +33,73 @@
 
 using namespace std;
 
+//Structs utilizadas
+
+struct InfoMatriz
+{
+    int linhas = 0;
+    int colunas = 0;
+};
+
+struct InfoSub
+{
+    int linhas = 0;
+    int colunas = 0;
+};
+
+struct Parametros
+{
+    int idThread = 0;
+    InfoMatriz* matriz = NULL;
+    InfoSub* subMatriz = NULL;
+};
+
 //Declaração das funções utilizadas
 
 //Funções da interface com usuário
 void ImprimeMenu(); //Imprime o menu de opções
+void ImprimeResultados(const InfoMatriz* matriz, const InfoSub* subMatriz, const int numThreads, const double tempoExecucao); //Imprime os resultados obtidos
 int LerInteiro(); //Garante a leitura de um inteiro
 bool ConfirmarEscolha(const string op); //Pergunta ao usuário para confirmar sua ação
+bool PodeExecutar(const InfoMatriz* matriz, const InfoSub* subMatriz, const int numThreads, const bool matPreenchida); // Verifica se tudo está adequado para execução
 
 //Manipulação da matriz
-void GerarMatriz(const int linhas, const int colunas); //Aloca dinâmicamente uma matriz
-void PreencherMatriz(const int linhas, const int colunas, const int semente); //Preenche a matriz com valores aleatórios
+void GerarMatriz(const InfoMatriz* matriz); //Aloca dinâmicamente uma matriz
+void PreencherMatriz(const InfoMatriz* matriz, const int semente); //Preenche a matriz com valores aleatórios
+void LiberarMatriz(const int linhas); //Libera memória alocada dinâmicamente para matriz
 
 //Contagem dos números primos
-void ContarPrimos(void* parametros);
+void ContarPrimos(void* parametrosFunc);
 bool VerificaPrimalidade(const int n); //Verifica se um número n é primo
 
-//Imprime na tela
-void ImprimeResultados(); //Imprime os resultados obtidos
-void print(int linhas, int colunas); //Secrect function
+//Variaveis globais
+int** mat;
+int totalPrimos = 0;
+int subVerificadas = 0;
+vector<int> primos;
 
-struct Parametros {
-    int linhasMat = 0;
-    int colunasMat = 0;
-    int linhasSub = 0;
-    int colunasSub = 0;
-};
-
-int** mat = NULL;
+//MUTEX para sessão crítica
+HANDLE hmutex1;
+HANDLE hmutex2;
 
 int main()
 {
-    int opt, semente, n_threads = 0;
-    Parametros parametros;
+    int opt, semente, numThreads = 0, threadsCriadas = 0;
     bool confirmar;
     bool sementeGerada = false;
+    bool matrizGerada = false;
+    bool matPreenchida = false;
+    clock_t start, end;
+    double tempoExecucao = 0.0;
+
+    InfoMatriz matriz;
+    InfoSub subMatriz;
+
+    vector<HANDLE> hthreads;
+    vector<Parametros> vetorParametro;
+
+    hmutex1 = CreateMutex(NULL, FALSE, NULL);
+    hmutex2 = CreateMutex(NULL, FALSE, NULL);
 
     do
     {
@@ -82,111 +112,133 @@ int main()
                 confirmar = ConfirmarEscolha("o tamanho da matriz");
                 if (confirmar)
                 {
-                    cout << ">>Tamanho atual da matriz:" << parametros.linhas << "X" << parametros.colunas << endl;
-                    if(parametros.linhas == 0 && parametros.colunas == 0)
-                        free(mat);
-                    do{
+                    cout << ">>Tamanho atual da matriz:" << matriz.linhas << "X" << matriz.colunas << endl;
+                    if (matriz.linhas != 0) {
+                        cout << ">>Desalocando memória, aguarde..." << endl;
+                        LiberarMatriz(matriz.linhas);
+                    }
+                    do
+                    {
                         cout << "Informe o número de linhas:\n>";
-                        parametros.linhas = LerInteiro();
+                        matriz.linhas = LerInteiro();
                         cout << "Informe o número de colunas:\n>";
-                        parametros.colunas = LerInteiro();
-                        if(parametros.linhas <= 0 && parametros.colunas <= 0)
+                        matriz.colunas = LerInteiro();
+                        if(matriz.linhas <= 0 || matriz.colunas <= 0)
                             cout << ">>Entre com um valor válido." << endl;
-                    }while(parametros.linhas <= 0 && parametros.colunas <= 0);
-                    GerarMatriz(parametros.linhas, parametros.colunas);
-                    cout << ">>Tamanho da matriz alterada para: " << parametros.linhas << "X" << parametros.colunas << endl;
+                    }while(matriz.linhas <= 0 || matriz.colunas <= 0);
+                    GerarMatriz(&matriz);
+                    matrizGerada = true;
+                    cout << ">>Tamanho da matriz alterada para: " << matriz.linhas << "X" << matriz.colunas << endl;
                 }
                 else
                     cout << ">>O tamanho da matriz não foi alterada." << endl;
                 system("PAUSE");
                 break;
+
             case 2: //Definir semente do gerador
-                confirmar = ConfirmarEscolha("semente aleatoria");
-                if (confirmar)
-                {
-                    cout << "Entre com uma semente:\n>";
-                    semente = LerInteiro();
-                    cout << ">>Semente aleatória alterada com sucesso!" << endl;
-                    sementeGerada = true;
-                }
-                else
-                    cout << ">>Semente aleatória não foi alterada." << endl;
+                cout << "Entre com uma semente:\n>";
+                semente = LerInteiro();
+                cout << ">>Semente aleatória alterada com sucesso!" << endl;
+                sementeGerada = true;
                 system("PAUSE");
                 break;
+
             case 3: //Preencher matriz
-                if (sementeGerada)
+                if (sementeGerada && matrizGerada)
                 {
                     confirmar = ConfirmarEscolha("o conteúdo da matriz");
                     if (confirmar)
                     {
                         cout << ">>Preenchendo matriz com valores aleatórios..." << endl;
-                        PreencherMatriz(parametros.linhas, parametros.colunas, semente);
+                        PreencherMatriz(&matriz, semente);
+                        matPreenchida = true;
                         cout << ">>A matriz preenchida com valores aleatorios." << endl;
                     }
                     else
                         cout << ">>O conteúdo da matriz não foi alterado." << endl;
                 }
                 else
-                    cout << ">>Gere uma semente aleatória antes de preencher a matriz." << endl;
+                    cout << ">>É necessário gerar uma matriz e uma semente aleatória para realizar esta operação!" << endl;
                 system("PAUSE");
                 break;
+
             case 4: //Definir tamanho das submatrizes
-                confirmar = ConfirmarEscolha("o tamanho das submatrizes");
-                if (confirmar)
-                {
-                    cout << ">>O tamanho atual das submatrizes é de " << parametros.linhasSub << "X" << parametros.colunasSub << endl;
-                    do{
-                        cout << "Informe o número de linhas das submatrizes:\n>";
-                        parametros.linhasSub = LerInteiro();
-                        cout << "Informe o número de colunas das submatrizes:\n>";
-                        parametros.colunasSub = LerInteiro();
-                        if(parametros.linhasSub <= 0 && parametros.colunasSub <= 0)
-                            cout << ">>Entre com um tamanho válido para as submatrizes";
-                    }while(parametros.linhasSub <= 0 && parametros.colunasSub <= 0);
-                    cout << ">>Tamanho das submatrizes alterado para " << parametros.tamSub << " elementos." << endl;
-                }
-                else
-                    cout << ">>O tamanho das submatrizes não foi alterado." << endl;
+                cout << ">>O tamanho atual das submatrizes é de " << subMatriz.linhas << "X" << subMatriz.colunas << endl;
+                do{
+                    cout << "Informe o número de linhas das submatrizes:\n>";
+                    subMatriz.linhas = LerInteiro();
+                    cout << "Informe o número de colunas das submatrizes:\n>";
+                    subMatriz.colunas = LerInteiro();
+                    if(subMatriz.linhas <= 0 || subMatriz.colunas <= 0)
+                        cout << ">>Entre com um tamanho válido para as submatrizes" << endl;
+                    if (subMatriz.linhas > matriz.linhas || subMatriz.colunas > matriz.colunas)
+                        cout << ">>O numero de linha ou colunas da submatriz não pode ser maior que o da matriz original(Matriz original: " << matriz.linhas << "X" << matriz.colunas << ")" << endl;
+                }while(subMatriz.linhas <= 0 || subMatriz.colunas <= 0 || subMatriz.linhas > matriz.linhas || subMatriz.colunas > matriz.colunas);
+                cout << ">>Tamanho das submatrizes alterado para " << subMatriz.linhas << "X" << subMatriz.colunas << endl;
                 system("PAUSE");
                 break;
+
             case 5: //Definir número de Thread
-                confirmar = ConfirmarEscolha("o número de threads");
-                if (confirmar)
-                {
-                    cout << "Entre com o número de threads(n° threads atual: " << n_threads << "):\n>";
-                    n_threads = LerInteiro();
-                    cout << ">>Numero de threads alteradas para " << n_threads << "!" << endl;
-                }
-                else
-                    cout << ">>O numero de threads não foi alterado." << endl;
+                cout << "Entre com o número de threads(n° threads atual: " << numThreads << "):\n>";
+
+                numThreads = LerInteiro();
+                threadsCriadas = (int)vetorParametro.size();
+
+                if (numThreads > threadsCriadas) //Cria mais threads se necessário
+                    for (int i = threadsCriadas; i < numThreads; i++)
+                        vetorParametro.push_back({ i, &matriz, &subMatriz });
+                else //Diminui o numero de threads
+                    for (int i = threadsCriadas; i > numThreads; i--)
+                            vetorParametro.pop_back();
+
+                cout << ">>Numero de threads alteradas para " << numThreads << "!" << endl;
+
                 system("PAUSE");
                 break;
+
             case 6: //Executar
-                if (parametros.linhas == 0 || parametros.colunas == 0)
-                    cout << ">>Por favor defina um tamnaho de matriz válido (Atual: "<< parametros.linhas << "X" << parametros.colunas << ")." << endl;
-                else if (parametros.tamSub == 0)
-                    cout << ">>Por favor defina um tamanho de submatriz válido (Atual: " << parametros.tamSub << ")." << endl;
-                else
-                {
-                    cout << ">>Processando..." << endl;
-                    //TODO
+                
+                if (PodeExecutar(&matriz, &subMatriz, numThreads, matPreenchida)) {
+
+                    if (totalPrimos != 0 || subVerificadas != 0) {
+                        totalPrimos = 0;
+                        subVerificadas = 0;
+                    }
+                    cout << ">>Executando para " << numThreads << " threads, aguarde..." << endl;
+
+                    start = clock();
+                    for (int i = 0; i < numThreads; i++)
+                        hthreads.push_back(CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)&ContarPrimos, &vetorParametro[i], 0, NULL));
+
+                    WaitForMultipleObjects(numThreads, hthreads.data(), TRUE, INFINITE);
+                    end = clock();
+
+                    tempoExecucao = double(end - start) / CLOCKS_PER_SEC;
+
+                    
+                    hthreads.clear(); //Remove as threads
+
                     cout << ">>Processamento concluido com sucesso!" << endl;
                 }
+                else
+                    cout << ">>Não foi possível executar!" << endl;
                 system("PAUSE");
                 break;
+
             case 7: //Ver resultados
                 cout << ">>Gerando relatório dos resultados obtidos..." << endl;
-                //TODO
-                ImprimeResultados();
-                break;
-            case 8: //Encerrar
-                cout << ">>Finalizando..." << endl;
-                free(mat);
-                break;
-            case -99:
-                print(parametros.linhas, parametros.colunas);
+                ImprimeResultados(&matriz, &subMatriz, numThreads, tempoExecucao);
                 system("PAUSE");
                 break;
+
+            case 8: //Encerrar
+                cout << ">>Desalocando memória, aguarde..." << endl;
+                LiberarMatriz(matriz.linhas);
+                cout << ">>Finalizando..." << endl;
+                CloseHandle(hmutex1);
+                CloseHandle(hmutex2);
+                break;
+
             default: //Caso padrão, opção inválida
                 cout << ">>Por favor, entre com uma opção válida." << endl;
                 system("PAUSE");
@@ -197,20 +249,48 @@ int main()
 }
 
 
+//Definição das funções utilizadas
+
+/* Declaração das funções utilizadas */
+
 void ImprimeMenu() 
 {
     system("CLS");
-    cout << "--------------------------------------------------------------------------------" << endl;
-    cout << "1- Definir tamanho da Matriz" << "\t\t" << "5- Definir número de Thread" << endl;
-    cout << "2- Definir semente do gerador" << "\t\t" << "6- Executar" << endl;
-    cout << "3- Preencher matriz" << "\t\t\t" << "7- Ver resultados" << endl;
-    cout << "4- Definir tamanho das submatrizes" << "\t" << "8- Encerrar" << endl;
-    cout << "--------------------------------------------------------------------------------" << endl;
+    cout << "--------------------------------------------------------------------------------" << endl
+         << "1- Definir tamanho da Matriz" << "\t\t" << "5- Definir número de Thread" << endl
+         << "2- Definir semente do gerador" << "\t\t" << "6- Executar" << endl
+         << "3- Preencher matriz" << "\t\t\t" << "7- Ver resultados" << endl
+         << "4- Definir tamanho das submatrizes" << "\t" << "8- Encerrar" << endl
+         << "--------------------------------------------------------------------------------" << endl;
 }
 
-void ImprimeResultados()
+void ImprimeResultados(const InfoMatriz* matriz, const InfoSub* subMatriz, const int numThreads, const double tempoExecucao)
 {
-    //TODO
+    if (tempoExecucao != 0.0) 
+    {
+        cout << "\n----------------------------------RESULTADOS----------------------------------" << endl
+            << ">Tamanho da matriz: " << matriz->linhas << "X" << matriz->colunas << endl
+            << ">Tamanho da submatriz: " << subMatriz->linhas << "X" << subMatriz->colunas << endl
+            << ">Número de threads: " << numThreads << endl
+            << ">Qunatidade de primos: " << totalPrimos << endl
+            << "Tempo decorrido: " << tempoExecucao << " segundos" << endl
+            << "------------------------------------------------------------------------------" << endl;
+    }
+    else
+    {
+        cout << ">>É necessário pelo menos uma execução para gerar um ralatório!" << endl;
+    }
+}
+
+int LerInteiro()
+{
+    int inteiro = 0;
+    while (!(cin >> inteiro)) {
+        cout << "ERRO: Entre com um número válido:\n>";
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    }
+    return inteiro;
 }
 
 bool ConfirmarEscolha(const string op)
@@ -234,27 +314,64 @@ bool ConfirmarEscolha(const string op)
     return false;
 }
 
-void GerarMatriz(const int linhas, const int colunas)
+
+bool PodeExecutar(const InfoMatriz* matriz, const InfoSub* subMatriz, const int numThreads, const bool matPreenchida)
 {
-    mat = (int**)malloc(linhas * sizeof(int*));
-    for (int i = 0; i < linhas; i++)
-        mat[i] = (int*)malloc(colunas * sizeof(int));
+    if (matriz->linhas <= 0 || matriz->colunas <= 0)
+    {
+        cout << ">>Por favor defina um tamanho de matriz válido (Atual: " << matriz->linhas << "X" << matriz->colunas << ")." << endl;
+        return false;
+    }
+    else if (subMatriz->linhas <= 0 || subMatriz->colunas <= 0)
+    {
+        cout << ">>Por favor defina um tamanho de submatriz válido (Atual: " << subMatriz->linhas << "X" << subMatriz->colunas << ")." << endl;
+        return false;
+    }
+    else if (numThreads == 0)
+    {
+        cout << ">>Por favor defina a quantidade de threads!" << endl;
+        return false;
+    }
+    else if (!matPreenchida)
+    {
+        cout << ">>Por favor preencha a matriz antes de executar!" << endl;
+        return false;
+    }
+    else
+        return true;
 }
 
-void PreencherMatriz(const int linhas, const int colunas, const int semente)
+
+/* Manipulação da matriz */
+
+
+void GerarMatriz(const InfoMatriz* matriz)
+{
+    mat = (int**)malloc(matriz->linhas * sizeof(int*));
+    for (int i = 0; i < matriz->linhas; i++) 
+        mat[i] = (int*)malloc(matriz->colunas * sizeof(int));
+}
+
+void PreencherMatriz(const InfoMatriz* matriz, const int semente)
 {
     srand(semente);
 
-    for (int i = 0; i < linhas; i++)
+    for (int i = 0; i < matriz->linhas; i++)
     {
-        for (int j = 0; j < colunas; j++)
+        for (int j = 0; j < matriz->colunas; j++)
         {
             mat[i][j] = rand();
-            cout << mat[i][j] << "  ";
         }
-        cout << endl;
     }
 }
+
+void LiberarMatriz(const int linhas) {
+    for (int i = 0; i < linhas; i++)
+        free(mat[i]);
+    free(mat);
+}
+
+/* Contagem dos números primos */
 
 bool VerificaPrimalidade(const int n)
 {
@@ -262,35 +379,72 @@ bool VerificaPrimalidade(const int n)
         return false;
     if (n == 2 || n == 3)
         return true;
-    if (!(n & 1)) //Verifica se o número é par utilizando operador And bit a bit
+    if (!(n & 1)) //verifica se o número é par utilizando operador and bit a bit
         return false;
-    for (int i = 3; i <= sqrt(n); i += 6)
-        if (n % i == 0 || n % (i + 2) == 0)
+    for (int i = 3; i <= n/2; i += 2) //Verifica se é divisivel por algum numero impar
+        if (n % i == 0)
             return false;
     return true;
 }
 
-int LerInteiro() {
-    int inteiro;
-    while (!(cin >> inteiro)) {
-        cout << "ERRO: o número deve ser inteiro! Entre com um número válido:\n>";
-        cin.clear();
-        cin.ignore(numeric_limits<streamsize>::max(), '\n');
-    }
-    return inteiro;
-}
+void ContarPrimos(void* parametrosFunc) {
+    //variaveis locais
+    Parametros* parametros = (Parametros*)parametrosFunc;
+    int linha, coluna, num;
+    int contLocal = 0;
+    bool temResto = false;
+    bool primo = false;
 
-void print(int linhas, int colunas) {
-    for (int i = 0; i < linhas; i++)
-    {
-        for (int j = 0; j < colunas; j++)
-        {
-            cout << mat[i][j] << "  ";
+    //Calcula quantidade de elementos
+    int totalElementos = parametros->matriz->linhas * parametros->matriz->colunas;
+    int totalSub = parametros->subMatriz->linhas * parametros->subMatriz->colunas;
+
+    //calcula quantidade de submatrix
+    int qntdSub = totalElementos / totalSub;
+    int elementosRestante = totalElementos % totalSub;
+
+    if (elementosRestante != 0) {
+        qntdSub++;
+        temResto = true;
+    }
+
+    //calcula iterações
+    int elementoInicial = parametros->idThread * totalSub;
+    int elementoFinal = elementoInicial + totalSub;
+
+    //Sessão critica p/ controlar a verificação de matrizes
+    WaitForSingleObject(hmutex1, INFINITE);
+    subVerificadas++;
+    ReleaseMutex(hmutex1);
+
+    while (subVerificadas <= qntdSub) {
+        contLocal = 0;
+        linha = elementoInicial / parametros->matriz->colunas;
+        coluna = elementoInicial % parametros->matriz->colunas;
+        for (int i = elementoInicial; i < elementoFinal; i++) {
+            num = mat[linha][coluna];
+            primo = VerificaPrimalidade(num);
+            if (primo)
+                contLocal++;
+            coluna++; //Percorre as colunas
+            if (coluna == parametros->matriz->colunas) {
+                coluna = 0;
+                linha++; //Percorre as linhas
+            }
         }
-        cout << endl;
+
+        //Sessão critica para armazenar resultado da thread e calcular proxima submatriz a ser verificada
+        WaitForSingleObject(hmutex2, INFINITE);
+        totalPrimos += contLocal;
+        elementoInicial = subVerificadas * totalSub;
+        elementoFinal = elementoInicial + totalSub;
+        subVerificadas++;
+        if (temResto)
+            if (subVerificadas == qntdSub)
+                elementoFinal = elementoInicial + elementosRestante;
+        cout << "id: " << parametros->idThread << " verificando do elemento " << elementoInicial << " ate " << elementoFinal << endl;
+        ReleaseMutex(hmutex2);
     }
-}
 
-void ContarPrimos(void* parametros) {
-
+    _endthread();
 }
