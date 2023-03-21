@@ -412,7 +412,7 @@ void ContarPrimos(void* parametrosFunc) {
     int totalElementos = parametros->matriz->linhas * parametros->matriz->colunas;
     int totalSub = parametros->subMatriz->linhas * parametros->subMatriz->colunas;
 
-    //calcula quantidade de submatrix
+    //calcula quantidade de submatriz
     int qntdSub = totalElementos / totalSub;
     int elementosRestante = totalElementos % totalSub;
 
