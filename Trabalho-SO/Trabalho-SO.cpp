@@ -74,13 +74,12 @@ void ContarPrimos(void* parametrosFunc); //Função multithreading para contar o
 bool VerificaPrimalidade(const int n); //Verifica se um número n é primo
 
 //Variaveis globais
-int** mat;
+int** mat = nullptr;
 int totalPrimos = 0;
 int subVerificadas = 0;
 
 //MUTEX para sessão crítica
-HANDLE hmutex1;
-HANDLE hmutex2;
+HANDLE hmutex;
 
 int main()
 {
@@ -99,8 +98,7 @@ int main()
     vector<HANDLE> hthreads;
     vector<Parametros> vetorParametro;
 
-    hmutex1 = CreateMutex(NULL, FALSE, NULL);
-    hmutex2 = CreateMutex(NULL, FALSE, NULL);
+    hmutex = CreateMutex(NULL, FALSE, NULL);
 
     do
     {
@@ -205,17 +203,19 @@ int main()
                 
                 if (PodeExecutar(&matriz, &subMatriz, numThreads, matPreenchida)) {
 
-                    if (totalPrimos != 0 || subVerificadas != 0) {
+                    if (totalPrimos != 0) {
                         totalPrimos = 0;
-                        subVerificadas = 0;
                     }
                     cout << ">>Executando para " << numThreads << " threads, aguarde..." << endl;
+
+                    subVerificadas = numThreads; //Evita problemas de sincronismo(e o uso de um mutex)
 
                     start = clock();
                     for (int i = 0; i < numThreads; i++)
                         hthreads.push_back(CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)&ContarPrimos, &vetorParametro[i], 0, NULL));
 
                     WaitForMultipleObjects(numThreads, hthreads.data(), TRUE, INFINITE);
+
                     end = clock();
 
                     tempoExecucao = double(end - start) / CLOCKS_PER_SEC;
@@ -242,8 +242,7 @@ int main()
                 cout << ">>Desalocando memória, aguarde..." << endl;
                 LiberarMatriz(matriz.linhas);
                 cout << ">>Finalizando..." << endl;
-                CloseHandle(hmutex1);
-                CloseHandle(hmutex2);
+                CloseHandle(hmutex);
                 break;
 
             default: //Caso padrão, opção inválida
@@ -360,9 +359,9 @@ bool PodeExecutar(const InfoMatriz* matriz, const InfoSub* subMatriz, const int 
 
 void GerarMatriz(const InfoMatriz* matriz)
 {
-    mat = (int**)malloc(matriz->linhas * sizeof(int*));
-    for (int i = 0; i < matriz->linhas; i++) 
-        mat[i] = (int*)malloc(matriz->colunas * sizeof(int));
+    mat = new int* [matriz->linhas];
+    for (int i = 0; i < matriz->linhas; i++)
+        mat[i] = new int[matriz->colunas];
 }
 
 void PreencherMatriz(const InfoMatriz* matriz, const int semente)
@@ -380,8 +379,9 @@ void PreencherMatriz(const InfoMatriz* matriz, const int semente)
 
 void LiberarMatriz(const int linhas) {
     for (int i = 0; i < linhas; i++)
-        free(mat[i]);
-    free(mat);
+        delete[] mat[i];
+    delete[] mat;
+    mat = nullptr;
 }
 
 /* Contagem dos números primos */
@@ -421,19 +421,15 @@ void ContarPrimos(void* parametrosFunc) {
         temResto = true;
     }
 
-    //calcula iterações
+    //calcula iterações iniciais
     int elementoInicial = parametros->idThread * totalSub;
     int elementoFinal = elementoInicial + totalSub;
 
     if (elementoInicial >= totalElementos) //threads a mais que o necessário que seram inutilizadas
         _endthread();
 
-    //Sessão critica p/ controlar a verificação de matrizes
-    WaitForSingleObject(hmutex1, INFINITE);
-    subVerificadas++;
-    ReleaseMutex(hmutex1);
-
-    while (subVerificadas <= qntdSub) {
+    do 
+    {
         contLocal = 0;
         linha = elementoInicial / parametros->matriz->colunas; //Calcula linha inicial da matriz para cada submatriz
         coluna = elementoInicial % parametros->matriz->colunas; //Calcula coluna inicial da matriz para cada submatriz
@@ -450,7 +446,7 @@ void ContarPrimos(void* parametrosFunc) {
         }
 
         //Sessão critica para armazenar resultado da thread e calcular proxima submatriz a ser verificada
-        WaitForSingleObject(hmutex2, INFINITE);
+        WaitForSingleObject(hmutex, INFINITE);
         totalPrimos += contLocal;
         if (subVerificadas <= qntdSub) {
             elementoInicial = subVerificadas * totalSub;
@@ -460,8 +456,8 @@ void ContarPrimos(void* parametrosFunc) {
                 if (subVerificadas == qntdSub)
                     elementoFinal = elementoInicial + elementosRestante;
         }
-        ReleaseMutex(hmutex2);
-    }
+        ReleaseMutex(hmutex);
+    } while (subVerificadas <= qntdSub);
 
     _endthread();
 }
