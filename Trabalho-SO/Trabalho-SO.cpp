@@ -1,6 +1,6 @@
 /*
 * Disciplina: Sistemas Operacionais
-* Curso: Engenharia de Computação - UFGD - FACET
+* Curso: Engenharia de Computação - FACET - UFGD
 * 
 * Trabalho 1
 * 
@@ -18,7 +18,7 @@
 #include <iostream>
 #include <locale>
 
-//manipulação de vetores
+//Manipulação de vetores
 #include <vector>
 
 //Medir tempo gasto
@@ -87,7 +87,7 @@ HANDLE hmutex;
 
 int main()
 {
-    setlocale(LC_CTYPE, "pt_BR.UTF-8"); //Troca a codificação dos caracteres para imprimir caracteres acentuados  corretamente
+    setlocale(LC_CTYPE, "pt_BR.UTF-8"); //Troca a codificação dos caracteres para imprimir caracteres acentuados corretamente
     int opt, semente = 0, numThreads = 0, threadsCriadas = 0;
     bool confirmar;
     bool sementeGerada = false;
@@ -203,7 +203,12 @@ int main()
             case 5: //Definir número de Thread
                 cout << "Entre com o número de threads(n° threads atual: " << numThreads << "):\n>";
 
-                numThreads = LerInteiro();
+                do 
+                {
+                    numThreads = LerInteiro();
+                    if (numThreads <= 0)
+                        cout << ">>Por Favor entre com um número inteiro positivo diferente de 0!" << endl;
+                } while (numThreads <= 0);
                 threadsCriadas = (int)vetorParametro.size();
 
                 if (numThreads > threadsCriadas) //Cria mais threads se necessário
@@ -231,7 +236,7 @@ int main()
                     else
                         cout << ">>Executando para " << numThreads << " threads, aguarde..." << endl;
 
-                    subVerificadas = numThreads; //Evita problemas de sincronismo(e o uso de um mutex)
+                    subVerificadas = numThreads; //Evita problemas de sincronismo
 
                     start = clock();
                     for (int i = 0; i < numThreads; i++)
