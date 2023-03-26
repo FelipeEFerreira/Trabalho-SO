@@ -4,10 +4,14 @@
 * 
 * Trabalho 1
 * 
-* Docente: Marcos Paulo Moro
-* 
+* Docente: 
+*   Marcos Paulo Moro
 * Discente:
-* Felipe Emanuel Ferreira   RGA: 20200712175441
+*   Felipe Emanuel Ferreira   RGA: 20200712175441
+* 
+* Objetivos:
+*   1) Introduzir o conceito de programação concorrente com múltiplas threads e seções críticas.  
+*   2) Analisar comparativamente o desempenho do algoritmo com diferentes números de threads.  
 */
 
 //Operações de I/O
@@ -75,15 +79,15 @@ bool VerificaPrimalidade(const int n); //Verifica se um número n é primo
 
 //Variaveis globais
 int** mat = nullptr;
-int totalPrimos = 0;
-int subVerificadas = 0;
+unsigned int totalPrimos = 0;
+unsigned int subVerificadas = 0;
 
 //MUTEX para sessão crítica
 HANDLE hmutex;
 
 int main()
 {
-    setlocale(LC_CTYPE, "pt_BR.UTF-8"); //Troca a codificação dos caracteres para imprimir caracteres acentudados corretamente
+    setlocale(LC_CTYPE, "pt_BR.UTF-8"); //Troca a codificação dos caracteres para imprimir caracteres acentuados  corretamente
     int opt, semente = 0, numThreads = 0, threadsCriadas = 0;
     bool confirmar;
     bool sementeGerada = false;
@@ -129,7 +133,9 @@ int main()
                             cout << ">>Entre com um valor válido." << endl;
 
                     }while(matriz.linhas <= 0 || matriz.colunas <= 0);
+                    cout << ">>Gerando matriz, aguarde.." << endl;
                     GerarMatriz(&matriz);
+                    tempoExecucao = 0.0;
                     matrizGerada = true;
                     cout << ">>Tamanho da matriz alterada para: " << matriz.linhas << "X" << matriz.colunas << endl;
                 }
@@ -166,18 +172,31 @@ int main()
                 break;
 
             case 4: //Definir tamanho das submatrizes
-                cout << ">>O tamanho atual das submatrizes é de " << subMatriz.linhas << "X" << subMatriz.colunas << endl;
-                do{
-                    cout << "Informe o número de linhas das submatrizes:\n>";
-                    subMatriz.linhas = LerInteiro();
-                    cout << "Informe o número de colunas das submatrizes:\n>";
-                    subMatriz.colunas = LerInteiro();
-                    if(subMatriz.linhas <= 0 || subMatriz.colunas <= 0)
-                        cout << ">>Entre com um tamanho válido para as submatrizes" << endl;
-                    if (subMatriz.linhas > matriz.linhas || subMatriz.colunas > matriz.colunas)
-                        cout << ">>O numero de linha ou colunas da submatriz não pode ser maior que o da matriz original(Matriz original: " << matriz.linhas << "X" << matriz.colunas << ")" << endl;
-                }while(subMatriz.linhas <= 0 || subMatriz.colunas <= 0 || subMatriz.linhas > matriz.linhas || subMatriz.colunas > matriz.colunas);
-                cout << ">>Tamanho das submatrizes alterado para " << subMatriz.linhas << "X" << subMatriz.colunas << endl;
+                if (!matrizGerada) // Caso a matriz não tenha sido criada
+                {
+                    cout << ">>Por favor gera uma matriz primeiro!" << endl;
+                    system("PAUSE");
+                    break;
+                }
+                confirmar = ConfirmarEscolha("o tamanho da submatriz");
+                if (confirmar)
+                {
+                    cout << ">>O tamanho atual das submatrizes é de " << subMatriz.linhas << "X" << subMatriz.colunas << endl;
+                    do {
+                        cout << "Informe o número de linhas das submatrizes:\n>";
+                        subMatriz.linhas = LerInteiro();
+                        cout << "Informe o número de colunas das submatrizes:\n>";
+                        subMatriz.colunas = LerInteiro();
+                        if (subMatriz.linhas <= 0 || subMatriz.colunas <= 0)
+                            cout << ">>Entre com um tamanho válido para as submatrizes" << endl;
+                        if (subMatriz.linhas > matriz.linhas || subMatriz.colunas > matriz.colunas)
+                            cout << ">>O numero de linha ou colunas da submatriz não pode ser maior que o da matriz original(Matriz original: " << matriz.linhas << "X" << matriz.colunas << ")" << endl;
+                    } while (subMatriz.linhas <= 0 || subMatriz.colunas <= 0 || subMatriz.linhas > matriz.linhas || subMatriz.colunas > matriz.colunas);
+                    cout << ">>Tamanho das submatrizes alterado para " << subMatriz.linhas << "X" << subMatriz.colunas << endl;
+                    tempoExecucao = 0.0;
+                }
+                else
+                    cout << "O tamanho das submatrizes não foi alterado!" << endl;
                 system("PAUSE");
                 break;
 
@@ -206,7 +225,11 @@ int main()
                     if (totalPrimos != 0) {
                         totalPrimos = 0;
                     }
-                    cout << ">>Executando para " << numThreads << " threads, aguarde..." << endl;
+
+                    if (subMatriz.linhas == matriz.linhas && subMatriz.colunas == matriz.colunas)
+                        cout << ">>Executando em modo serial, aguarde..." << endl;
+                    else
+                        cout << ">>Executando para " << numThreads << " threads, aguarde..." << endl;
 
                     subVerificadas = numThreads; //Evita problemas de sincronismo(e o uso de um mutex)
 
@@ -242,7 +265,8 @@ int main()
                 cout << ">>Desalocando memória, aguarde..." << endl;
                 LiberarMatriz(matriz.linhas);
                 cout << ">>Finalizando..." << endl;
-                CloseHandle(hmutex);
+                if(hmutex != 0)
+                    CloseHandle(hmutex);
                 break;
 
             default: //Caso padrão, opção inválida
@@ -307,9 +331,11 @@ bool ConfirmarEscolha(const string op)
     {
         cout << "Deseja mudar " << op << "?[S/N]" << endl;
         if (op == "o tamanho da matriz")
-            cout << "ATENÇÂO: isso implicará na perda dos elementos da matriz!" << endl;
+            cout << "ATENÇÂO: isso implicará na perda dos elementos da matriz e do resultado anterior!" << endl;
         if (op == "o conteúdo da matriz")
-            cout << "ATENÇÂO: caso tenha mudado a semente aleatória essa operação irá sobrescrever os dados anteriores." << endl;
+            cout << "ATENÇÂO: caso tenha mudado a semente aleatória essa operação irá sobrescrever os dados anteriores!" << endl;
+        if (op == "o tamanho da submatriz")
+            cout << "ATENÇÂO: essa operação implicará na perda dos resultados anteriores!" << endl;
         cout << ">";
         cin >> escolha;
         escolha = toupper(escolha);
@@ -407,14 +433,15 @@ void ContarPrimos(void* parametrosFunc) {
     int contLocal = 0;
     bool temResto = false;
     bool primo = false;
+    unsigned int i;
 
     //Calcula quantidade de elementos
-    int totalElementos = parametros->matriz->linhas * parametros->matriz->colunas;
-    int totalSub = parametros->subMatriz->linhas * parametros->subMatriz->colunas;
+    unsigned int totalElementos = parametros->matriz->linhas * parametros->matriz->colunas;
+    unsigned int totalSub = parametros->subMatriz->linhas * parametros->subMatriz->colunas;
 
     //calcula quantidade de submatriz
-    int qntdSub = totalElementos / totalSub;
-    int elementosRestante = totalElementos % totalSub;
+    unsigned int qntdSub = totalElementos / totalSub;
+    unsigned int elementosRestante = totalElementos % totalSub;
 
     if (elementosRestante != 0) {
         qntdSub++;
@@ -422,18 +449,19 @@ void ContarPrimos(void* parametrosFunc) {
     }
 
     //calcula iterações iniciais
-    int elementoInicial = parametros->idThread * totalSub;
-    int elementoFinal = elementoInicial + totalSub;
+    unsigned int elementoInicial = parametros->idThread * totalSub;
+    unsigned int elementoFinal = elementoInicial + totalSub;
 
     if (elementoInicial >= totalElementos) //threads a mais que o necessário que seram inutilizadas
         _endthread();
 
-    do 
+    do
     {
         contLocal = 0;
         linha = elementoInicial / parametros->matriz->colunas; //Calcula linha inicial da matriz para cada submatriz
         coluna = elementoInicial % parametros->matriz->colunas; //Calcula coluna inicial da matriz para cada submatriz
-        for (int i = elementoInicial; i < elementoFinal; i++) {
+        for (i = elementoInicial; i < elementoFinal; i++) {
+
             num = mat[linha][coluna];
             primo = VerificaPrimalidade(num);
             if (primo)
